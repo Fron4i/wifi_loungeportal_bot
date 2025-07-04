@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+	<meta charset="UTF-8">
+	<title>Авторизация через Telegram</title>
+	<style>
+		body {
+			font-family: sans-serif;
+			text-align: center;
+			padding-top: 50px;
+			background-color: #f0f0f0;
+			margin: 0;
+		}
+
+		#mac-container {
+			background-color: #fff;
+			border: 1px solid #ccc;
+			padding: 25px;
+			display: inline-block;
+			border-radius: 8px;
+			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			min-width: 600px;
+			max-width: 100%;
+		}
+
+		.label {
+			color: #555;
+			font-size: 0.9em;
+		}
+
+		#mac-value {
+			font-weight: bold;
+			font-size: 1.2em;
+			margin: 10px 0 20px;
+			display: block;
+			word-wrap: break-word;
+		}
+
+		.error {
+			color: #d9534f;
+			font-weight: bold;
+		}
+
+		.input-wrapper {
+			margin-bottom: 20px;
+			text-align: left;
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+			justify-content: center;
+			align-items: center;
+		}
+
+		.input-wrapper label {
+			display: block;
+			margin-bottom: 5px;
+			font-weight: 600;
+		}
+
+		.input-wrapper input,
+		.input-wrapper select {
+			width: 100%;
+			padding: 10px 12px;
+			font-size: 1em;
+			border: 1px solid #ccc;
+			border-radius: 6px;
+			box-sizing: border-box;
+			outline: none;
+			transition: border-color 0.3s;
+		}
+
+		.input-wrapper input:focus,
+		.input-wrapper select:focus {
+			border-color: #007aff;
+		}
+
+		#goBtn {
+			padding: 10px 20px;
+			font-size: 1em;
+			background-color: #007aff;
+			color: white;
+			border: none;
+			border-radius: 6px;
+			cursor: pointer;
+			width: max-content;
+			transition: background-color 0.3s;
+		}
+
+		#goBtn:hover:not(:disabled) {
+			background-color: #005dc1;
+		}
+
+		#goBtn:disabled {
+			max-width: max-content;
+			background-color: #ccc;
+			cursor: not-allowed;
+		}
+
+		#linkText {
+			margin-top: 15px;
+			font-size: 0.9em;
+			color: #555;
+			word-wrap: break-word;
+			text-align: left;
+			line-height: 1.4;
+		}
+
+		.phone-group {
+			display: flex;
+			justify-content: center;
+			width: 100%;
+			max-width: 50%;
+		}
+
+		.phone-group select {
+			border: 1px solid #ccc;
+			border-radius: 6px 0 0 6px;
+			padding: 10px 0px 10px 5px;
+			background-color: white;
+			font-size: 1em;
+			outline: none;
+			width: 22.5%;
+			box-sizing: border-box;
+		}
+
+		.phone-group input {
+			margin-left: -1px;
+			border: 1px solid #ccc;
+			border-radius: 0 6px 6px 0;
+			padding: 10px 12px;
+			font-size: 1em;
+			outline: none;
+			width: 50%;
+			box-sizing: border-box;
+		}
+
+		.phone-group input:focus,
+		.phone-group select:focus {
+			border-color: #007aff;
+			z-index: 1;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="mac-container">
+		<span class="label">MAC-адрес вашего устройства:</span>
+		<span id="mac-value">Загрузка...</span>
+
+		<div class="input-wrapper">
+			<label for="phone">Введите свой телефон для подтверждения</label>
+			<div class="phone-group">
+				<select id="country">
+					<option value="(___) ___-__-__" selected>+7</option>
+					<option value="(__) ___-__-__">+375</option>
+					<option value="(__) ___-__-__">+380</option>
+				</select>
+				<input type="tel" id="phone" data-phone-pattern="(___) ___-__-__" required placeholder="(___) ___-__-__">
+			</div>
+		</div>
+
+		<button id="goBtn" disabled>Продолжить проверку в Telegram</button>
+		<div id="linkText" style="display: none;"></div>
+	</div>
+
+	<div id="debug" style="color:red; margin-top:20px; font-family:monospace;"></div>
+
+	<script>
+		function showDebug(msg) {
+			const d = document.getElementById('debug')
+			d.textContent = msg
+		}
+
+		// Извлечение GET-параметров из URL
+		const urlParams = new URLSearchParams(window.location.search)
+		const macAddress = urlParams.get('mac') || null
+		const ipAddress = urlParams.get('ip') || null
+
+		const displayElement = document.getElementById('mac-value')
+		const phoneInput = document.getElementById('phone')
+		const goBtn = document.getElementById('goBtn')
+		const linkText = document.getElementById('linkText')
+		const countrySelector = document.getElementById('country')
+
+		// Отображаем MAC-адрес
+		if (macAddress) {
+			displayElement.textContent = decodeURIComponent(macAddress)
+		} else {
+			displayElement.classList.add('error')
+			displayElement.textContent = 'MAC-адрес не определён'
+		}
+
+		// Отображаем IP-адрес в дебаге (для отладки)
+		if (ipAddress) {
+			showDebug(`IP: ${ipAddress}`)
+		} else {
+			showDebug('IP-адрес не определён')
+		}
+
+		function getRawPhoneNumber(val) {
+			return val.replace(/\D/g, '')
+		}
+
+		countrySelector.addEventListener('change', function () {
+			const pattern = this.value
+			phoneInput.dataset.phonePattern = pattern
+			phoneInput.placeholder = pattern
+			phoneInput.value = ''
+			const event = new Event('input', { bubbles: true })
+			phoneInput.dispatchEvent(event)
+		})
+
+		document.addEventListener("DOMContentLoaded", function () {
+			function handleInput(e) {
+				const el = e.target
+				const pattern = el.dataset.phonePattern || "(___) ___-__-__"
+				const def = pattern.replace(/\D/g, "")
+				let val = el.value.replace(/\D/g, "")
+				let i = 0
+
+				if (el.value.startsWith(countrySelector.value)) {
+					val = val.slice(countrySelector.value.length)
+				}
+
+				const formatted = pattern.replace(/./g, (char) =>
+					/[_\d]/.test(char) && i < val.length ? val.charAt(i++) : i >= val.length ? "" : char
+				)
+
+				el.value = formatted.slice(0, pattern.length)
+				validateInput()
+			}
+
+			phoneInput.addEventListener('input', handleInput)
+			phoneInput.addEventListener('blur', handleInput)
+			phoneInput.addEventListener('focus', handleInput)
+		})
+
+		function validateInput() {
+			const raw = getRawPhoneNumber(phoneInput.value)
+			const countryCode = countrySelector.options[countrySelector.selectedIndex].textContent
+			let isValid = false
+
+			if (countryCode === '+7') {
+				isValid = raw.length >= 10
+			} else {
+				isValid = raw.length >= 9
+			}
+
+			goBtn.disabled = !isValid
+
+			if (isValid) {
+				const link = `https://t.me/wifi_loungeportal_bot?start=${macAddress || "00:00:00:00:00:00"}_tel=${countryCode}${raw}`
+				linkText.innerHTML = `Будет выполнен переход по ссылке:<br><code>${link}</code>`
+				linkText.style.display = 'block'
+			} else {
+				linkText.style.display = 'none'
+			}
+		}
+
+		goBtn.addEventListener('click', () => {
+			if (goBtn.disabled) return
+
+			const raw = getRawPhoneNumber(phoneInput.value)
+			const countryCode = countrySelector.options[countrySelector.selectedIndex].textContent
+			const fullPhone = countryCode + raw
+			const mac = macAddress || "00:00:00:00:00:00"
+			const ip = ipAddress || "0.0.0.0"
+
+			console.log("Отправка данных:")
+			console.log("Телефон:", fullPhone)
+			console.log("MAC:", mac)
+			console.log("IP:", ip)
+
+			const formData = new URLSearchParams()
+			formData.append("phone", fullPhone)
+			formData.append("mac", mac)
+			formData.append("ip", ip)
+
+			fetch('https://wifi.lounge-place.ru/wifi/submit.php', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+				},
+				body: formData
+			})
+				.then(response => {
+					if (!response.ok) {
+						throw new Error(`HTTP error! Статус: ${response.status}`)
+					}
+					return response.text()
+				})
+				.then(text => {
+					console.log("Ответ от сервера:", text)
+					if (text.trim() === 'OK') {
+						const tgLink = `https://t.me/wifi_loungeportal_bot?start=${mac}_tel=${fullPhone}`
+						window.location.href = tgLink
+					} else {
+						alert('Ошибка сохранения данных на сервере: ' + text)
+					}
+				})
+				.catch(err => {
+					console.error("Ошибка при отправке запроса:", err)
+					alert('Ошибка соединения с сервером: ' + err.message)
+				})
+		});
+	</script>
+</body>
+
+</html>

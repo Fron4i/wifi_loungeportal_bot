@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<title>Redirecting...</title>
+
+<body>
+	<form name="redirect" action="https://wifi.lounge-place.ru/login.html" method="get">
+		<input type="hidden" name="mac" value="$(mac)">
+		<input type="hidden" name="ip" value="$(ip)">
+		<input type="submit" value="Proceed">
+	</form>
+	<script>
+		document.redirect.submit();
+	</script>
+</body>
+
+</html>
