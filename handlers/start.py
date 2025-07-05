@@ -8,7 +8,7 @@ from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery, ReplyKeyb
 from aiogram.filters import CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.enums import ChatMemberStatus
+from aiogram.enums import ChatMemberStatus, ChatType
 from aiogram.exceptions import TelegramBadRequest
 from concurrent.futures import ThreadPoolExecutor
 
@@ -90,7 +90,7 @@ async def send_or_edit_message(source: Message | CallbackQuery, text: str, reply
 
 
 # --- Обработчик команды /start ---
-@router.message(CommandStart())
+@router.message(CommandStart(), F.chat.type == ChatType.PRIVATE)
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
     user_name = message.from_user.first_name

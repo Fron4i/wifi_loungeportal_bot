@@ -13,6 +13,8 @@ from aiogram.fsm.storage.memory import MemoryStorage # Или другая FSM S
 
 # Импортируем роутеры из handlers
 from handlers import start # Убедитесь, что этот импорт корректен и файл handlers/start.py существует
+# Новая логика групповых уведомлений
+import group_notifications
 
 # Настройка логирования
 # 1) Подавляем INFO-логи aiogram.event
@@ -70,6 +72,8 @@ async def main():
     storage = MemoryStorage() # Используем хранилище в памяти для FSM
     dp = Dispatcher(storage=storage)
 
+    # Инициализируем модуль групповых уведомлений (передаём объект Bot)
+    group_notifications.init(bot)
 
     # Запускаем фоновую задачу очистки bypass ОЧИСТКА
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
@@ -79,7 +83,8 @@ async def main():
     # logger.info("Регистрация роутеров...")
     try:
         dp.include_routers(
-            start.router
+            start.router,
+            group_notifications.router
             # Если у вас есть другие файлы с роутерами в папке handlers, добавляйте их сюда:
             # from handlers import another_handler
             # dp.include_router(another_handler.router)
@@ -100,6 +105,9 @@ async def main():
         # logger.info("Вебхук успешно удален, ожидающие обновления сброшены.")
     except Exception as e:
         logger.error(f"Ошибка при удалении вебхука (возможно, он не был установлен): {e}")
+
+    # Запускаем HTTP-сервер, который принимает уведомления от captive-портала
+    await group_notifications.start_http_server()
 
     # logger.info("Запуск бота в режиме поллинга с детальным логированием входящих апдейтов...")
 

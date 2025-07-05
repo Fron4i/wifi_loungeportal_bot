@@ -68,3 +68,107 @@ async def update_user_on_backend(telegram_id: int, phone_number: str, is_subscri
     except Exception as e:
         logger.exception(f"Непредвиденная ошибка при отправке данных на бэкенд: {e}")
         return False, "Произошла непредвиденная ошибка. Пожалуйста, попробуйте позже."
+
+# ---- Работа с токенами для групповых уведомлений ----
+
+async def register_token_on_backend(token: str, chat_id: int | None, nas_ip: str | None = None) -> bool:
+    """Регистрирует/обновляет токен на PHP-бэкенде.\n        chat_id=None (или 0) означает «пока не привязан».\n        nas_ip можно передать пустым."""
+    if not PHP_BACKEND_URL:
+        logger.error("PHP_BACKEND_URL not set — cannot register token")
+        return False
+
+    payload = {
+        'action': 'register_token',
+        'token': token,
+        'chat_id': str(chat_id or 0),
+    }
+    if nas_ip is not None:
+        payload['nas_ip'] = nas_ip
+
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.post(PHP_BACKEND_URL, data=payload, timeout=10) as r:
+                text = await r.text()
+                ok = r.status == 200 and text.strip().upper() == 'OK'
+                if ok:
+                    logger.info("token %s registered (chat_id=%s)", token, chat_id)
+                else:
+                    logger.warning("register_token backend response %s: %s", r.status, text)
+                return ok
+    except Exception as e:
+        logger.error("register_token_on_backend error: %s", e)
+        return False
+
+
+async def check_token_on_backend(token: str) -> dict | None:
+    """Запрашивает состояние токена. Возвращает dict {'ok':bool,'busy':bool,'chat_id':int}."""
+    if not PHP_BACKEND_URL:
+        return None
+    payload = {'action': 'check_token', 'token': token}
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.post(PHP_BACKEND_URL, data=payload, timeout=10) as r:
+                if r.status != 200:
+                    return None
+                data = await r.json(content_type=None)
+                return data
+    except Exception as e:
+        logger.error("check_token_on_backend error: %s", e)
+        return None
+
+# ---------------------------------------------------------------
+#  Дополнительные эндпоинты для работы группового бота через PHP
+# ---------------------------------------------------------------
+
+
+async def token_by_chat_on_backend(chat_id: int) -> dict | None:
+    """Возвращает токен, привязанный к chat_id.
+    Ожидается JSON {ok: bool, token: str | null}."""
+    if not PHP_BACKEND_URL:
+        return None
+    payload = {'action': 'token_by_chat', 'chat_id': str(chat_id)}
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.post(PHP_BACKEND_URL, data=payload, timeout=10) as r:
+                if r.status != 200:
+                    return None
+                return await r.json(content_type=None)
+    except Exception as e:
+        logger.error("token_by_chat_on_backend error: %s", e)
+        return None
+
+
+async def list_tokens_on_backend() -> list | None:
+    """Запрашивает полный список токенов: ожидается JSON [{token:str, chat_id:int}, ...]."""
+    if not PHP_BACKEND_URL:
+        return None
+    payload = {'action': 'list_tokens'}
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.post(PHP_BACKEND_URL, data=payload, timeout=10) as r:
+                if r.status != 200:
+                    return None
+                return await r.json(content_type=None)
+    except Exception as e:
+        logger.error("list_tokens_on_backend error: %s", e)
+        return None
+
+# --------------------------------------------------
+#  Получить токен по nas_ip (чтобы он был уникален)
+# --------------------------------------------------
+
+
+async def token_by_nas_on_backend(nas_ip: str) -> dict | None:
+    """Возвращает {'ok': bool, 'token': str | None, 'chat_id': int}."""
+    if not PHP_BACKEND_URL:
+        return None
+    payload = {'action': 'token_by_nas', 'nas_ip': nas_ip}
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.post(PHP_BACKEND_URL, data=payload, timeout=10) as r:
+                if r.status != 200:
+                    return None
+                return await r.json(content_type=None)
+    except Exception as e:
+        logger.error("token_by_nas_on_backend error: %s", e)
+        return None
